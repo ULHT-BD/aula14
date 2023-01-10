@@ -23,50 +23,67 @@ Caso já tenha o docker pode iniciá-lo usando o comando ```docker start mysgbd`
 Deve também ter o cliente DBeaver.
 
 ## 1. Triggers
-Stored Procedure são procedimentos em SQL armazenados como objetos de código pré-compilado na base de dados e que podem ser executados diretamente no SGBD. Permitem assegurar eficiência e segurança.
+Enquanto Stored Procedure são blocos de código em SQL que podem ser invocados explicitamente quando se pretende a sua execução, Triggers são blocos de código igualmente armazenados como objetos de código pré-compilado na base de dados que são executados automaticamente quando um dado evento ocorre na base de dados (por exemplo uma inserção de um tuplo, atualização, etc).
 
-A sintaxe para criação de um SP é:
-
+A sintaxe para criação de um Trigger é:
 ``` sql
-CREATE PROCEDURE <proc-name> 
-		(param_spec1, param_spec2, …, param_specn ) 
-BEGIN
-	-- codigo a executar	
-END;
+CREATE TRIGGER trigger_name
+    trigger_time trigger_event
+    ON tbl_name FOR EACH ROW
+    [trigger_order]
+    trigger_body
 ```
 
-onde os parâmetros podem ser definidos como de entrada ```IN```, saída ```OUT``` ou entrada e saída ```INOUT```.
+onde trigger_time indica se deve ser executado antes ```BEFORE``` ou após ```AFTER``` o evento trigger_event (```INSERT```, ```UPDATE```, ```DELETE```). trigger_order permite definir ordem (```FOLLOWS```, ```PRECEDES```) de sequência de triggers quando necessário.
 
 Por exemplo
 ``` sql
+DELIMITER \\
+
+CREATE TRIGGER inscreveBD AFTER INSERT ON Aluno
+       FOR EACH ROW
+       INSERT INTO inscricoes VALUES (NEW.numero, ‘BD’);\\
+      
+DELIMITER ;
+```
+
+```NEW``` e ```OLD``` permitem manipular tuplos antes ou depois de alteracao ou insercao. No exemplo ```NEW``` representa o tuplo que acaba de ser inserido.
+
+
+## 2. Error Handling
+Quando executamos blocos de código e importante definir o comportamento do codigo no caso da ocorrencia de erros, por exemplo, o que devera acontecer se na execucao de um procedimento uma restricao de integridade for infringida ou se uma transacao falhar? Conseguimos definir o comportamento atraves da definicao de handlers que definem o comportamento para um dado tipo de erros.
+
+A sintaxe e:
+``` sql
+DECLARE action
+HANDLER FOR 
+    condition_value
+    statement;
+```
+
+* onde action define o comportamento no caso da ocorrencia do erro. Pode ser ```CONTINUE``` para continuar a execucao ou ```EXIT``` para interromper a execucao
+* condition_value e a condição que provoca activação do handler. Pode ser um MySQL error code, SQLSTATE (SQLWARNING , NOTFOUND, SQLEXCEPTION)
+* statement e a instrucao ou bloco de instrucoes a executar em caso e erro
+
+exemplo:
+``` sql
 DELIMITER $$
 
-CREATE PROCEDURE sp_exemplo (IN param1 INT, OUT param2 INT)
+CREATE PROCEDURE exemplo2 (IN param1 INT, IN param2 INT)
 BEGIN
-	SELECT COUNT(*) INTO param2 
-	FROM tabela
-	WHERE num=param1;
+
+	DECLARE EXIT HANDLER FOR 1062 
+	BEGIN
+		SELECT ’encontrado duplicado na inserção’ AS message;
+		RESIGNAL;
+	END;
+
+	-- insert tuple
+	INSERT INTO tabela VALUES (param1, param2);
 END$$
 
 DELIMITER ;
 ```
-
-Neste exemplo a cláusula ```DELIMITER``` permite alterar o caracter delimitador de instruções para que este possa ser usado no corpo do bloco de código. No final é importante repôr o caracter ```;```.
-
-Chamamos o procedimento usando a cláusula ```CALL```, por exemplo:
-``` sql
-CALL sp_exemplo(1, @a);
-```
-
-Podemos destruir um stored procedure usando a cláusula ```DROP```:
-``` sql
-DROP PROCEDURE sp_exemplo;
-```
-
-## 2. Error Handling
-À semelhança dos Stored Procedures, as Stored Functions são um tipo de objeto constituído por um bloco de código précompilado armazenado na base de dados e que pode ser executado em qualquer momento. Uma função pode ser criada através da sintaxe:
-
-
 
 ### Exercícios
 1. Escreva o código PL/SQL que permite criar o procedimento que cria um novo job (job_id, job_title, min_salary, max_salary) e que caso a inserção seja duplicada interrompe execução com mensagem de erro
